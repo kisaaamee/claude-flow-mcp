@@ -1,0 +1,41 @@
+{
+  "name": "claude-flow-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that moves files between local client folders and a Google Flow project: uploads references under clear names and fetches new images and clips back into the right folders.",
+  "author": "Mikita Valadzko",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "claude-flow-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "login": "node dist/login.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "playwright-core": "^1.57.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kisaaamee/claude-flow-mcp.git"
+  },
+  "homepage": "https://github.com/kisaaamee/claude-flow-mcp#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "google-flow",
+    "playwright",
+    "claude"
+  ]
+}
