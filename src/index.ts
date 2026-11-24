@@ -4,7 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { PATIENCE_MS } from "./config.js";
-import { exclusive, fetchNew, list, markSeen, rename, status, upload } from "./ops.js";
+import { agent, exclusive, fetchNew, generate, inspect, list, markSeen, rename, status, upload } from "./ops.js";
 
 const server = new McpServer({ name: "claude-flow-mcp", version: "0.1.0" });
 
@@ -117,6 +117,78 @@ server.registerTool(
     },
   },
   (a) => patient(() => rename(a)),
+);
+
+const reference = z.string().min(1);
+
+server.registerTool(
+  "cfm_generate",
+  {
+    description:
+      "Start ONE generation in Flow's prompt box (Agent switched off): sets image/video, aspect, outputs, model, and for video the mode, " +
+      "resolution and length; attaches references (local paths are uploaded first; 'asset:<title>' uses a tile already in the project) or " +
+      "first/last frames; types the prompt; presses Start generation. Does NOT wait for the render. Flow's credit quote is read first: " +
+      "anything priced above 0 starts only if max_credits >= the quote, so ask the user before passing max_credits for a paid video.",
+    inputSchema: {
+      project_url: projectUrl,
+      prompt: z.string().min(1).max(8000),
+      type: z.enum(["image", "video"]),
+      aspect: z.enum(["16:9", "9:16", "4:3", "1:1", "3:4"]).optional().describe("Default: whatever Flow has selected. Video: 16:9 or 9:16."),
+      count: z.number().int().min(1).max(4).default(1).describe("Outputs (x1-x4); multiplies the cost."),
+      model: z.string().optional().describe("Part of the model name as Flow shows it (e.g. 'Omni', 'Veo 3.1 Fast'). Images default to the newest Nano Banana."),
+      references: z.array(reference).max(10).default([]).describe("Ingredients: local paths (uploaded under '<brand>-<file>') or 'asset:<title>'."),
+      first_frame: reference.optional().describe("Video only: first frame (path or asset:<title>). Not combinable with references."),
+      last_frame: reference.optional().describe("Video only: last frame."),
+      video_mode: z.enum(["ingredients", "frames"]).optional(),
+      resolution: z.string().optional().describe("Video only, e.g. '360p', '720p'."),
+      duration: z.number().int().min(1).max(30).optional().describe("Video only, seconds (radios or the Length slider)."),
+      max_credits: z.number().int().min(0).max(1000).optional().describe("Spend ceiling for this one start. Required for anything Flow prices above 0."),
+      keep_lines: z.boolean().default(true).describe("Keep line breaks (Shift+Enter); false sends one line."),
+    },
+  },
+  (a) => patient(() => generate(a)),
+);
+
+server.registerTool(
+  "cfm_agent",
+  {
+    description:
+      "Send a multi-image prompt to Flow Agent: switches Agent on, sets its confirmation (default Never, so it does not stop to ask) and image " +
+      "defaults, attaches references in order (Reference A, B, ...), types the prompt and starts it. Does NOT wait. By default a short first " +
+      "line tells the agent: images only, no questions, and which attachment is which reference. Flow Agent shows no price up front, so " +
+      "allow_video needs acknowledge_cost: true after the user agreed.",
+    inputSchema: {
+      project_url: projectUrl,
+      prompt: z.string().min(1).max(20000),
+      references: z.array(reference).max(10).default([]),
+      aspect: z.enum(["16:9", "9:16", "4:3", "1:1", "3:4"]).optional().describe("Agent's image default."),
+      count: z.number().int().min(1).max(4).default(1).describe("Agent's outputs per image."),
+      confirm: z.enum(["never", "always"]).default("never"),
+      allow_video: z.boolean().default(false),
+      acknowledge_cost: z.boolean().default(false),
+      guard_line: z.boolean().default(true),
+      keep_lines: z.boolean().default(true),
+    },
+  },
+  (a) => patient(() => agent(a)),
+);
+
+server.registerTool(
+  "cfm_inspect",
+  {
+    description:
+      "Development aid: returns the accessibility tree of Flow's prompt box and open menus/panels, optionally after opening one of them or " +
+      "clicking one control. Never clicks Start generation, delete or account controls. Not needed for normal work.",
+    inputSchema: {
+      project_url: projectUrl,
+      open: z.enum(["settings", "ingredients", "agent_settings", "model_menu"]).optional(),
+      click: z.object({ role: z.string().min(1), name: z.string().min(1) }).optional(),
+      selector: z.string().optional().describe("CSS selector to snapshot instead of the defaults."),
+      escape_after: z.boolean().default(true),
+      max_chars: z.number().int().min(500).max(30000).default(8000),
+    },
+  },
+  (a) => patient(() => inspect(a)),
 );
 
 server.registerTool(
