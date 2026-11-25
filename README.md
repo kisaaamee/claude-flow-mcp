@@ -1,5 +1,25 @@
 # claude-flow-mcp
 
+**Run Google Flow by talking to Claude.** You say what you want, typed or by voice, and Claude does the clicking in
+Flow for you: picks the project, uploads your references, starts generations and brings the results home into the
+right client folder.
+
+## What working with it looks like
+
+1. **"Let's work on the bakery."** No project open? Claude lists your Flow projects right in the chat and asks:
+   open one of them, or create a new one (and what to call it).
+2. **"Put the product photos into Flow."** References from the client's folder go into the project under clear
+   names, so they are easy to pick as ingredients.
+3. **"Make four 9:16 shots of the croissant on a winter windowsill."** Claude types the prompt, sets the format,
+   model and references and presses Start, or hands a multi-image brief to Flow Agent. Paid video is never started
+   without your go-ahead.
+4. **You look, pick, regenerate by hand if you like.** Flow stays yours: everything can be done in the browser too.
+5. **"Done, take them."** Everything new comes back into the right folder, numbered, in the best free resolution
+   (2K / 1080p), and the tiles in Flow are renamed to match, so nothing is taken twice.
+6. **"Switch to the florist" / "start a new project".** Any time, in plain words.
+
+---
+
 An MCP server that takes the file shuffling out of working with [Google Flow](https://flow.google.com).
 
 You generate in Flow by hand. The assistant (Claude or any MCP client) does the rest on your word:
@@ -10,7 +30,7 @@ You generate in Flow by hand. The assistant (Claude or any MCP client) does the 
   and renames each tile in Flow to match its file, so nothing is taken twice;
 - **rename**: renames tiles in Flow on request.
 
-There is deliberately no generation, no prompt writing, no polling and no waiting for renders.
+Generation (`cfm_generate`, `cfm_agent`) starts a job and returns at once: there is no polling and no waiting for renders.
 
 Built for the Kinowo Studio workflow (AI visuals and short films for small businesses), where every client has its
 own folder and every batch of pictures has its own sub-folder.
