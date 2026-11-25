@@ -1,6 +1,6 @@
 {
   "name": "claude-flow-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server that moves files between local client folders and a Google Flow project: uploads references under clear names and fetches new images and clips back into the right folders.",
   "author": "Mikita Valadzko",
   "license": "MIT",

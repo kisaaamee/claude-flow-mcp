@@ -5,8 +5,21 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { PATIENCE_MS } from "./config.js";
 import { agent, exclusive, fetchNew, generate, inspect, list, markSeen, rename, status, upload } from "./ops.js";
+import { openProject, projects } from "./projects.js";
 
-const server = new McpServer({ name: "claude-flow-mcp", version: "0.1.0" });
+const server = new McpServer(
+  { name: "claude-flow-mcp", version: "0.2.0" },
+  {
+    instructions:
+      "Every Flow tool works in one Google Flow project. If none is open, a tool fails with NO_PROJECT_OPEN. Then never choose a " +
+      "project yourself: call cfm_projects and ask the user in the chat which project to work in. If your client has a tool for " +
+      "multiple-choice questions (e.g. AskUserQuestion), use it: the last used and most recent projects as options plus " +
+      "'Create a new project'; otherwise show a short numbered list (mark the open and the last used one) and ask. For a new " +
+      "project, also ask its name. Wait for the answer; open it with " +
+      "cfm_open_project (project: address, id or title; or create_new: true with name) and then repeat the call that failed. " +
+      "When the user asks to switch to another project or start a new one, use the same two tools.",
+  },
+);
 
 // ---- calls that outlive the client's patience keep running and are collected with cfm_result ----
 type Task = { promise: Promise<unknown>; done: boolean; value?: unknown; error?: string; started: number };
@@ -35,6 +48,37 @@ const projectUrl = z
   .string()
   .optional()
   .describe("Flow project address (https://flow.google.com/project/<id>). Default: the project open in the server's Chrome.");
+
+server.registerTool(
+  "cfm_projects",
+  {
+    description:
+      "List the Google Flow projects on the signed-in account (title, address, any date Flow shows), plus the project open now and the " +
+      "last one used. Read in a separate tab; nothing is opened or changed. Call it when a tool failed with NO_PROJECT_OPEN or the user " +
+      "wants another project, then show the list in the chat and let the user choose one or ask for a new one.",
+    inputSchema: {
+      limit: z.number().int().min(1).max(200).default(50),
+      debug: z.boolean().default(false).describe("Also return a sketch of the start page's HTML (for fixing the reader)."),
+    },
+  },
+  (a) => patient(() => projects(a)),
+);
+
+server.registerTool(
+  "cfm_open_project",
+  {
+    description:
+      "Open the Flow project the user chose in the server's Chrome, so the other tools work in it. project: its address, id or title " +
+      "(exact, or a unique beginning/part; several matches are refused, not guessed). Or create_new: true to make a new project, " +
+      "named `name` if given (renaming is best effort; the reply says if it has to be done by hand). Only on the user's choice.",
+    inputSchema: {
+      project: z.string().optional().describe("Address (https://flow.google.com/project/<id>), id, or title."),
+      create_new: z.boolean().default(false),
+      name: z.string().min(1).max(100).optional().describe("Name for the new project."),
+    },
+  },
+  (a) => patient(() => openProject(a)),
+);
 
 server.registerTool(
   "cfm_status",

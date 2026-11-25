@@ -32,6 +32,8 @@ Claude: cfm_fetch → acme_bakery-photos_styled-01.jpg … -07.jpg (2K), tiles r
 
 | Tool | What it does |
 | --- | --- |
+| `cfm_projects` | The account's Flow projects (title, address), plus the one open now and the last one used |
+| `cfm_open_project` | Open the project the user chose (`project`: address, id or title), or `create_new: true` with an optional `name` |
 | `cfm_status` | Chrome, open project, baseline, how many new tiles are ready / rendering / failed |
 | `cfm_list` | Tiles in the project (`only_new: true` shows what a fetch would take) |
 | `cfm_mark_seen` | Count everything now in the project as old |
@@ -42,6 +44,20 @@ Claude: cfm_fetch → acme_bakery-photos_styled-01.jpg … -07.jpg (2K), tiles r
 
 Every tool takes an optional `project_url` (`https://flow.google.com/project/<id>`); without it, the project open in
 the server's Chrome is used.
+
+When no project is open, the tools fail with `NO_PROJECT_OPEN` instead of guessing. The server's instructions tell the
+assistant what to do then: call `cfm_projects`, show you the list in the chat, ask which project to use or whether to
+make a new one, open your choice with `cfm_open_project` and repeat the call:
+
+```
+You:    Upload the product photos from acme_bakery/00_brand/products.
+Claude: No Flow project is open. Your projects:
+          1. Acme bakery (last used)
+          2. Kowalski florist
+        Which one, or should I create a new project?
+You:    New one, call it "Acme Christmas".
+Claude: cfm_open_project(create_new, name "Acme Christmas") → cfm_upload …
+```
 
 Paths may be absolute or relative to the clients root: `acme_bakery/00_brand/products`,
 `acme_bakery/03_photos_styled`. A folder's brand is its first level under the root, so files fetched into

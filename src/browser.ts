@@ -3,6 +3,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { CDP_PORT, FLOW_ORIGIN, PROFILE_DIR } from "./config.js";
+import { lastProject, setLastProject } from "./state.js";
 
 const CDP_URL = `http://127.0.0.1:${CDP_PORT}`;
 
@@ -74,12 +75,50 @@ export async function chromeConnected(): Promise<boolean> {
   return debuggerUp();
 }
 
-// Returns the Flow tab showing the project's grid (All media). With no project_url, the project already open in the
-// server's Chrome is used.
-export async function projectPage(projectUrl?: string): Promise<{ page: Page; projectId: string }> {
+export async function flowContext() {
   const b = await connect();
   const context = b.contexts()[0];
   if (!context) throw new Error("The server's Chrome has no window. Close it and call the tool again.");
+  return context;
+}
+
+// The tab the server works in: the one showing a project, else any Flow tab, else a new one.
+export async function mainFlowPage(): Promise<Page> {
+  const context = await flowContext();
+  const flowTabs = context.pages().filter((p) => p.url().startsWith(FLOW_ORIGIN));
+  return flowTabs.find((p) => projectIdOf(p.url())) ?? flowTabs[0] ?? context.pages().find((p) => p.url() === "about:blank") ?? (await context.newPage());
+}
+
+export function signedInOrThrow(page: Page): void {
+  if (/\/about|accounts\.google\.com/.test(page.url())) {
+    throw new Error("Chrome is not signed in to Google Flow. Run `npm run login` in the server folder and sign in by hand.");
+  }
+}
+
+// A project title as the tab shows it ("Google Flow - Acme bakery" -> "Acme bakery").
+export async function projectTitleOf(page: Page): Promise<string | undefined> {
+  const t = (await page.title().catch(() => ""))
+    .replace(/^\s*(Google\s+)?Flow\s*[-|–:]\s*/i, "")
+    .replace(/\s*[-|–]\s*(Google\s+)?Flow\s*$/i, "")
+    .trim();
+  return t && !/^(Google\s+)?Flow$/i.test(t) ? t : undefined;
+}
+
+export function noProjectMessage(): string {
+  const last = lastProject();
+  const hint = last ? ` The last project used was "${last.title ?? last.id}" (${FLOW_ORIGIN}/project/${last.id}).` : "";
+  return (
+    "NO_PROJECT_OPEN: no Google Flow project is open in the server's Chrome, so this call did nothing." +
+    hint +
+    " Do not pick one yourself: call cfm_projects, show the user the list in the chat, ask which project to work in or " +
+    "whether to create a new one (and its name), then call cfm_open_project with that answer and repeat this call."
+  );
+}
+
+// Returns the Flow tab showing the project's grid (All media). With no project_url, the project already open in the
+// server's Chrome is used; with none open, it fails with NO_PROJECT_OPEN so the assistant asks the user.
+export async function projectPage(projectUrl?: string): Promise<{ page: Page; projectId: string }> {
+  const context = await flowContext();
   const flowTabs = context.pages().filter((p) => p.url().startsWith(FLOW_ORIGIN));
   const wantedId = projectUrl ? projectIdOf(projectUrl) : undefined;
   if (projectUrl && !wantedId) throw new Error(`"${projectUrl}" is not a Flow project address (flow.google.com/project/<id>).`);
@@ -89,7 +128,7 @@ export async function projectPage(projectUrl?: string): Promise<{ page: Page; pr
   const projectId = wantedId ?? projectIdOf(page.url());
   if (!projectId) {
     if (page.url() === "about:blank") await page.goto(english(`${FLOW_ORIGIN}/`), { waitUntil: "domcontentloaded" });
-    throw new Error("No Flow project is open. Open the project in the server's Chrome window, or pass project_url.");
+    throw new Error(noProjectMessage());
   }
 
   const grid = english(`${FLOW_ORIGIN}/project/${projectId}`);
@@ -98,12 +137,11 @@ export async function projectPage(projectUrl?: string): Promise<{ page: Page; pr
   if (here.pathname !== `/project/${projectId}` || (lang && !/^en\b/i.test(lang))) {
     await page.goto(grid, { waitUntil: "domcontentloaded" });
   }
-  if (/\/about|accounts\.google\.com/.test(page.url())) {
-    throw new Error("Chrome is not signed in to Google Flow. Run `npm run login` in the server folder and sign in by hand.");
-  }
+  signedInOrThrow(page);
   await page.getByRole("button", { name: "Add media menu" }).waitFor({ state: "visible", timeout: 30_000 }).catch(() => {
     throw new Error("The Flow project page did not finish loading (no 'Add media menu' button after 30 s).");
   });
   await page.bringToFront().catch(() => {});
+  setLastProject(projectId, await projectTitleOf(page));
   return { page, projectId };
 }

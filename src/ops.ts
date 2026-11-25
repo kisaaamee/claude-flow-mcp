@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import type { Page } from "playwright-core";
-import { chromeConnected, projectPage } from "./browser.js";
+import { chromeConnected, mainFlowPage, noProjectMessage, projectIdOf, projectPage } from "./browser.js";
 import * as C from "./compose.js";
 import { CLIENTS_ROOT } from "./config.js";
 import { brandOf, defaultPrefix, listMedia, MEDIA_EXT, nextNumber, resolveClientPath, safeName, stageForUpload } from "./files.js";
@@ -21,6 +21,9 @@ const view = (t: Tile) => ({ title: t.title, kind: t.kind, ...(t.busy ? { render
 export async function status(a: { project_url?: string }) {
   if (!(await chromeConnected()) && !a.project_url) {
     return { chrome: "not running", note: "Chrome starts by itself on the next call that needs Flow." };
+  }
+  if (!a.project_url && !projectIdOf((await mainFlowPage()).url())) {
+    return { chrome: "connected", project: null, clients_root: CLIENTS_ROOT, note: noProjectMessage() };
   }
   const { projectId, page } = await projectPage(a.project_url);
   const seen = seenSet(projectId);
